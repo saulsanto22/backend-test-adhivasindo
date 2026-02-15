@@ -113,13 +113,20 @@ Semua endpoint di bawah memerlukan header `Authorization: Bearer <token>` kecual
 
 ### Pencarian Umum (Best Practice)
 
+Endpoint ini mencakup ketiga pencarian di atas (C, D, E) dalam satu endpoint menggunakan query parameter.
+
 | Method | Endpoint | Keterangan |
 |--------|----------|------------|
-| GET | `/api/external/search?name=...` | Cari berdasarkan nama |
+| GET | `/api/external/search?name=...` | Cari berdasarkan NAMA |
 | GET | `/api/external/search?nim=...` | Cari berdasarkan NIM |
 | GET | `/api/external/search?ymd=...` | Cari berdasarkan YMD |
 
-Hanya satu parameter pencarian yang diperbolehkan per request.
+Hanya **satu** parameter pencarian yang diperbolehkan per request.
+
+**Contoh:**
+- `GET /api/external/search?name=Turner%20Mia` → sama dengan endpoint C
+- `GET /api/external/search?nim=9352078461` → sama dengan endpoint D
+- `GET /api/external/search?ymd=20230405` → sama dengan endpoint E
 
 **Contoh response pencarian:**
 ```json
