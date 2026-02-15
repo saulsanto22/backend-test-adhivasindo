@@ -2,59 +2,164 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\User\StoreUserRequest;
+use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use App\Services\UserService;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 
 class UserController extends Controller
 {
-    public function index()
+    use ApiResponse;
+
+    public function __construct(
+        private UserService $userService
+    ) {}
+
+    /**
+     * @OA\Get(
+     *     path="/api/users",
+     *     tags={"Users"},
+     *     summary="Daftar semua user",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Daftar user",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Daftar user."),
+     *             @OA\Property(property="data", type="array", @OA\Items(ref="#/components/schemas/User"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function index(): JsonResponse
     {
-        return response()->json(User::all());
+        return $this->success($this->userService->getAll(), 'Daftar user.');
     }
 
-    public function store(Request $request)
+    /**
+     * @OA\Post(
+     *     path="/api/users",
+     *     tags={"Users"},
+     *     summary="Buat user baru",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"name", "email", "password"},
+     *             @OA\Property(property="name", type="string", example="John Doe"),
+     *             @OA\Property(property="email", type="string", format="email", example="john@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="secret123")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="User berhasil dibuat",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="User berhasil dibuat."),
+     *             @OA\Property(property="data", ref="#/components/schemas/User")
+     *         )
+     *     ),
+     *     @OA\Response(response=422, description="Validasi gagal"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function store(StoreUserRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:6'],
-        ]);
+        $user = $this->userService->create($request->validated());
 
-        $data['password'] = Hash::make($data['password']);
-
-        $user = User::create($data);
-
-        return response()->json($user, 201);
+        return $this->created($user, 'User berhasil dibuat.');
     }
 
-    public function show(User $user)
+    /**
+     * @OA\Get(
+     *     path="/api/users/{id}",
+     *     tags={"Users"},
+     *     summary="Detail user",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer"), description="ID user"),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Detail user",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Detail user."),
+     *             @OA\Property(property="data", ref="#/components/schemas/User")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="User tidak ditemukan"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function show(User $user): JsonResponse
     {
-        return response()->json($user);
+        return $this->success($user, 'Detail user.');
     }
 
-    public function update(Request $request, User $user)
+    /**
+     * @OA\Put(
+     *     path="/api/users/{id}",
+     *     tags={"Users"},
+     *     summary="Update user",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer"), description="ID user"),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="name", type="string", example="John Updated"),
+     *             @OA\Property(property="email", type="string", format="email", example="john@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="newpassword")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="User berhasil diperbarui",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="User berhasil diperbarui."),
+     *             @OA\Property(property="data", ref="#/components/schemas/User")
+     *         )
+     *     ),
+     *     @OA\Response(response=422, description="Validasi gagal"),
+     *     @OA\Response(response=404, description="User tidak ditemukan"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'email' => ['sometimes', 'required', 'email', 'max:255', 'unique:users,email,' . $user->id],
-            'password' => ['sometimes', 'required', 'string', 'min:6'],
-        ]);
+        $user = $this->userService->update($user, $request->validated());
 
-        if (array_key_exists('password', $data)) {
-            $data['password'] = Hash::make($data['password']);
-        }
-
-        $user->fill($data);
-        $user->save();
-
-        return response()->json($user);
+        return $this->success($user, 'User berhasil diperbarui.');
     }
 
-    public function destroy(User $user)
+    /**
+     * @OA\Delete(
+     *     path="/api/users/{id}",
+     *     tags={"Users"},
+     *     summary="Hapus user",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer"), description="ID user"),
+     *     @OA\Response(
+     *         response=200,
+     *         description="User berhasil dihapus",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="User berhasil dihapus."),
+     *             @OA\Property(property="data", type="null")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="User tidak ditemukan"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function destroy(User $user): JsonResponse
     {
-        $user->delete();
+        $this->userService->delete($user);
 
-        return response()->json(['message' => 'User deleted']);
+        return $this->success(null, 'User berhasil dihapus.');
     }
 }
