@@ -2,87 +2,113 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Http;
+use App\Http\Requests\External\SearchExternalRequest;
+use App\Services\ExternalDataService;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 
 class ExternalDataController extends Controller
 {
-    private const DATA_URL = 'https://ogienurdiana.com/career/ecc694ce4e7f6e45a5a7912cde9fe131';
+    use ApiResponse;
 
-    public function searchByName(string $name)
+    public function __construct(
+        private ExternalDataService $externalDataService
+    ) {}
+
+    /**
+     * @OA\Get(
+     *     path="/api/external/name/{name}",
+     *     tags={"External Data"},
+     *     summary="Cari data berdasarkan NAMA",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="name", in="path", required=true, @OA\Schema(type="string"), description="Nama yang dicari", example="Turner Mia"),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Pencarian berhasil",
+     *         @OA\JsonContent(ref="#/components/schemas/ExternalSearchResponse")
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=502, description="Gagal mengambil data eksternal")
+     * )
+     */
+    public function searchByName(string $name): JsonResponse
     {
         return $this->searchByField('NAMA', $name);
     }
 
-    public function searchByNim(string $nim)
+    /**
+     * @OA\Get(
+     *     path="/api/external/nim/{nim}",
+     *     tags={"External Data"},
+     *     summary="Cari data berdasarkan NIM",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="nim", in="path", required=true, @OA\Schema(type="string"), description="NIM yang dicari", example="9352078461"),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Pencarian berhasil",
+     *         @OA\JsonContent(ref="#/components/schemas/ExternalSearchResponse")
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=502, description="Gagal mengambil data eksternal")
+     * )
+     */
+    public function searchByNim(string $nim): JsonResponse
     {
         return $this->searchByField('NIM', $nim);
     }
 
-    public function searchByYmd(string $ymd)
+    /**
+     * @OA\Get(
+     *     path="/api/external/ymd/{ymd}",
+     *     tags={"External Data"},
+     *     summary="Cari data berdasarkan YMD",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="ymd", in="path", required=true, @OA\Schema(type="string"), description="Tanggal YMD yang dicari", example="20230405"),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Pencarian berhasil",
+     *         @OA\JsonContent(ref="#/components/schemas/ExternalSearchResponse")
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=502, description="Gagal mengambil data eksternal")
+     * )
+     */
+    public function searchByYmd(string $ymd): JsonResponse
     {
         return $this->searchByField('YMD', $ymd);
     }
 
-    private function searchByField(string $field, string $value)
+    /**
+     * @OA\Get(
+     *     path="/api/external/search",
+     *     tags={"External Data"},
+     *     summary="Cari data (best practice - query param)",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="name", in="query", required=false, @OA\Schema(type="string"), description="Cari berdasarkan NAMA"),
+     *     @OA\Parameter(name="nim", in="query", required=false, @OA\Schema(type="string"), description="Cari berdasarkan NIM"),
+     *     @OA\Parameter(name="ymd", in="query", required=false, @OA\Schema(type="string"), description="Cari berdasarkan YMD"),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Pencarian berhasil",
+     *         @OA\JsonContent(ref="#/components/schemas/ExternalSearchResponse")
+     *     ),
+     *     @OA\Response(response=422, description="Harus mengisi tepat satu parameter"),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=502, description="Gagal mengambil data eksternal")
+     * )
+     */
+    public function search(SearchExternalRequest $request): JsonResponse
     {
-        $records = $this->fetchRecords();
-
-        if ($records instanceof \Illuminate\Http\JsonResponse) {
-            return $records;
-        }
-
-        $matches = array_values(array_filter($records, function (array $row) use ($field, $value) {
-            return isset($row[$field]) && $row[$field] === $value;
-        }));
-
-        return response()->json([
-            'field' => $field,
-            'value' => $value,
-            'count' => count($matches),
-            'data' => $matches,
-        ]);
+        return $this->searchByField(
+            $request->getSearchField(),
+            $request->getSearchValue()
+        );
     }
 
-    private function fetchRecords()
+    private function searchByField(string $field, string $value): JsonResponse
     {
-        $response = Http::timeout(15)->get(self::DATA_URL);
+        $result = $this->externalDataService->searchByField($field, $value);
 
-        if (! $response->ok()) {
-            return response()->json(['message' => 'Failed to fetch external data'], 502);
-        }
-
-        $payload = $response->json();
-        if (! is_array($payload)) {
-            $payload = json_decode($response->body(), true);
-        }
-
-        $dataString = is_array($payload) ? ($payload['DATA'] ?? null) : null;
-        if (! is_string($dataString)) {
-            return response()->json(['message' => 'Invalid external data format'], 502);
-        }
-
-        $lines = preg_split('/\r?\n/', trim($dataString));
-        if (! $lines || count($lines) < 2) {
-            return response()->json(['message' => 'External data is empty'], 502);
-        }
-
-        $headers = explode('|', array_shift($lines));
-        $records = [];
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-
-            $values = explode('|', $line);
-            if (count($values) !== count($headers)) {
-                continue;
-            }
-
-            $records[] = array_combine($headers, $values);
-        }
-
-        return $records;
+        return $this->success($result, 'Pencarian berhasil.');
     }
 }
