@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -56,6 +57,20 @@ class Handler extends ExceptionHandler
                 'success' => false,
                 'message' => 'Unauthenticated.',
             ], 401);
+        });
+
+        $this->renderable(function (QueryException $e) {
+            $message = 'Database connection error.';
+            $code = 503;
+
+            if (str_contains($e->getMessage(), 'connection') || str_contains($e->getMessage(), 'SQLSTATE[08006]') || str_contains($e->getMessage(), 'SQLSTATE[HY000]')) {
+                $message = 'Tidak dapat terhubung ke database. Pastikan database sudah berjalan dan konfigurasi sudah benar.';
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+            ], $code);
         });
     }
 }
