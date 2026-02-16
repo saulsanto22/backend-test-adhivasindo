@@ -195,11 +195,59 @@ Semua endpoint memerlukan header `Authorization: Bearer <token>` kecuali Registe
 
 | Method | Endpoint          | Keterangan       |
 |--------|-------------------|------------------|
-| GET    | `/api/users`      | Daftar semua user |
+| GET    | `/api/users`      | Daftar semua user (paginasi dinamis) |
 | POST   | `/api/users`      | Buat user baru    |
 | GET    | `/api/users/{id}` | Detail user       |
 | PUT    | `/api/users/{id}` | Update user       |
 | DELETE | `/api/users/{id}` | Hapus user        |
+
+#### Paginasi Dinamis pada Daftar User
+
+Endpoint `GET /api/users` mendukung paginasi dinamis dengan query parameter:
+
+| Parameter  | Tipe    | Default | Keterangan                        |
+|------------|---------|---------|-----------------------------------|
+| `per_page` | integer | 10      | Jumlah data per halaman           |
+| `page`     | integer | 1       | Nomor halaman                     |
+| `search`   | string  | -       | Cari berdasarkan nama atau email  |
+
+**Contoh request:**
+```
+GET /api/users                          → halaman 1, 10 data per halaman
+GET /api/users?per_page=5               → halaman 1, 5 data per halaman
+GET /api/users?per_page=20&page=2       → halaman 2, 20 data per halaman
+GET /api/users?search=john              → cari user dengan nama/email mengandung "john"
+GET /api/users?search=admin&per_page=5  → cari "admin" dengan 5 data per halaman
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Daftar user.",
+  "data": [
+    {
+      "id": 1,
+      "name": "Admin",
+      "email": "admin@example.com",
+      "created_at": "2026-02-16T10:00:00.000000Z",
+      "updated_at": "2026-02-16T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 10,
+    "total": 50,
+    "last_page": 5
+  },
+  "links": {
+    "first": "http://localhost:8000/api/users?page=1",
+    "last": "http://localhost:8000/api/users?page=5",
+    "prev": null,
+    "next": "http://localhost:8000/api/users?page=2"
+  }
+}
+```
 
 **Request body Buat/Update User:**
 ```json

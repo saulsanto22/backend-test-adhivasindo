@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\UserService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
@@ -21,23 +22,43 @@ class UserController extends Controller
      * @OA\Get(
      *     path="/api/users",
      *     tags={"Users"},
-     *     summary="Daftar semua user",
+     *     summary="Daftar semua user (dengan paginasi dinamis)",
      *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", default=10), description="Jumlah data per halaman (default: 10)"),
+     *     @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer", default=1), description="Nomor halaman"),
+     *     @OA\Parameter(name="search", in="query", required=false, @OA\Schema(type="string"), description="Cari berdasarkan nama atau email"),
      *     @OA\Response(
      *         response=200,
      *         description="Daftar user",
      *         @OA\JsonContent(
      *             @OA\Property(property="success", type="boolean", example=true),
      *             @OA\Property(property="message", type="string", example="Daftar user."),
-     *             @OA\Property(property="data", type="array", @OA\Items(ref="#/components/schemas/User"))
+     *             @OA\Property(property="data", type="array", @OA\Items(ref="#/components/schemas/User")),
+     *             @OA\Property(property="meta", type="object",
+     *                 @OA\Property(property="current_page", type="integer", example=1),
+     *                 @OA\Property(property="per_page", type="integer", example=10),
+     *                 @OA\Property(property="total", type="integer", example=50),
+     *                 @OA\Property(property="last_page", type="integer", example=5)
+     *             ),
+     *             @OA\Property(property="links", type="object",
+     *                 @OA\Property(property="first", type="string", example="http://localhost:8000/api/users?page=1"),
+     *                 @OA\Property(property="last", type="string", example="http://localhost:8000/api/users?page=5"),
+     *                 @OA\Property(property="prev", type="string", nullable=true, example=null),
+     *                 @OA\Property(property="next", type="string", nullable=true, example="http://localhost:8000/api/users?page=2")
+     *             )
      *         )
      *     ),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success($this->userService->getAll(), 'Daftar user.');
+        $perPage = (int) $request->query('per_page', 10);
+        $search = $request->query('search');
+
+        $users = $this->userService->getAll($perPage, $search);
+
+        return $this->paginated($users, 'Daftar user.');
     }
 
     /**

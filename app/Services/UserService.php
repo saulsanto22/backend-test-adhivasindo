@@ -3,17 +3,31 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Hash;
 
 class UserService
 {
     /**
-     * Ambil semua user.
+     * Ambil semua user dengan paginasi dinamis.
+     *
+     * @param  int  $perPage  Jumlah data per halaman (default: 10)
+     * @param  string|null  $search  Kata kunci pencarian (nama atau email)
+     * @return LengthAwarePaginator
      */
-    public function getAll(): Collection
+    public function getAll(int $perPage = 10, ?string $search = null): LengthAwarePaginator
     {
-        return User::all();
+        $query = User::query();
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                  ->orWhere('email', 'ilike', "%{$search}%");
+            });
+        }
+
+        return $query->latest()->paginate($perPage);
     }
 
     /**
